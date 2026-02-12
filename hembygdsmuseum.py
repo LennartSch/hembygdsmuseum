@@ -810,9 +810,6 @@ class MuseumGUI:
         self.skapa_givare_flik()
         self.skapa_statistik_flik()
 
-        # Generera första accessionsnumret automatiskt
-        self.generera_accnr()
-
     def skapa_meny(self):
         """Skapa menyraden"""
         menubar = tk.Menu(self.root)
@@ -982,6 +979,9 @@ class MuseumGUI:
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+        # Generera första accessionsnumret automatiskt när fliken är klar
+        self.root.after(100, self.generera_accnr)
 
     def skapa_sok_flik(self):
         """Flik för att söka och visa föremål"""
