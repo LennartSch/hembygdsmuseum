@@ -303,6 +303,30 @@ class MuseumDB:
         self.cursor.execute("DELETE FROM platser WHERE id = ?", (plats_id,))
         self.conn.commit()
 
+    def ta_bort_foremal(self, foremal_id):
+        """Ta bort ett föremål och alla dess relaterade data"""
+        # Ta bort kopplingar till givare
+        self.cursor.execute("DELETE FROM foremal_givare WHERE foremal_id = ?", (foremal_id,))
+
+        # Ta bort kopplingar till utställningar
+        self.cursor.execute("DELETE FROM foremal_utstallning WHERE foremal_id = ?", (foremal_id,))
+
+        # Ta bort konserveringshistorik
+        self.cursor.execute("DELETE FROM konservering WHERE foremal_id = ?", (foremal_id,))
+
+        # Hämta och ta bort foton (returnerar fotoposter för filborttagning)
+        self.cursor.execute("SELECT filsokvag FROM foton WHERE foremal_id = ?", (foremal_id,))
+        foton = self.cursor.fetchall()
+        self.cursor.execute("DELETE FROM foton WHERE foremal_id = ?", (foremal_id,))
+
+        # Ta bort själva föremålet
+        self.cursor.execute("DELETE FROM foremal WHERE id = ?", (foremal_id,))
+
+        self.conn.commit()
+
+        # Returnera fotosökvägar för filborttagning
+        return [foto['filsokvag'] for foto in foton]
+
     def lagg_till_givare(self, namn, adress, telefon, epost, anteckningar):
         """Lägg till ny givare"""
         self.cursor.execute(
@@ -1053,6 +1077,7 @@ class MuseumGUI:
         ttk.Button(button_frame, text="Visa detaljer", command=lambda: self.visa_foremal_detaljer(None)).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Skriv ut valt föremål", command=self.skriv_ut_valt_foremal).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Skriv ut lista", command=self.skriv_ut_foremalslista).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Ta bort föremål", command=self.ta_bort_valt_foremal).pack(side=tk.LEFT, padx=5)
 
     def skapa_kategorier_flik(self):
         """Flik för att hantera kategorier"""
@@ -1967,6 +1992,55 @@ SENASTE REGISTRERINGAR:
             PrintManager.visa_utskrift(html, "Givarlista")
         else:
             messagebox.showinfo("Info", "Inga givare registrerade")
+
+    def ta_bort_valt_foremal(self):
+        """Ta bort valt föremål"""
+        selection = self.resultat_tree.selection()
+        if not selection:
+            messagebox.showwarning("Varning", "Välj ett föremål först!\n\nMarkera ett föremål i listan som du vill ta bort.")
+            return
+
+        # Hämta föremålsinformation
+        item = self.resultat_tree.item(selection[0])
+        foremal_id = int(item['text'])
+        foremal = self.db.hamta_foremal(foremal_id)
+
+        if not foremal:
+            messagebox.showerror("Fel", "Kunde inte hämta föremålsinformation")
+            return
+
+        # Bekräfta borttagning
+        svar = messagebox.askyesno(
+            "Bekräfta borttagning",
+            f"Är du säker på att du vill ta bort detta föremål?\n\n"
+            f"Accessionsnummer: {foremal['accessionsnummer']}\n"
+            f"Namn: {foremal['namn']}\n\n"
+            f"VARNING: Detta kan inte ångras!\n"
+            f"Alla bilder och kopplingar kommer också att tas bort."
+        )
+
+        if not svar:
+            return
+
+        try:
+            # Ta bort föremål från databasen (returnerar fotosökvägar)
+            fotosokvagor = self.db.ta_bort_foremal(foremal_id)
+
+            # Ta bort bildfilerna från disken
+            for fotsokvag in fotosokvagor:
+                try:
+                    if os.path.exists(fotsokvag):
+                        os.remove(fotsokvag)
+                except Exception as e:
+                    print(f"Kunde inte ta bort bildfil {fotsokvag}: {e}")
+
+            # Ta bort från trädet
+            self.resultat_tree.delete(selection[0])
+
+            messagebox.showinfo("Borttaget", f"Föremål '{foremal['namn']}' har tagits bort.")
+
+        except Exception as e:
+            messagebox.showerror("Fel", f"Kunde inte ta bort föremål: {str(e)}")
 
 
 def main():
