@@ -810,6 +810,9 @@ class MuseumGUI:
         self.skapa_givare_flik()
         self.skapa_statistik_flik()
 
+        # Generera första accessionsnumret automatiskt
+        self.generera_accnr()
+
     def skapa_meny(self):
         """Skapa menyraden"""
         menubar = tk.Menu(self.root)
