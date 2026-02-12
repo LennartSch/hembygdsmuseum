@@ -247,6 +247,30 @@ class MuseumDB:
         self.conn.commit()
         return self.cursor.lastrowid
 
+    def uppdatera_foremal(self, foremal_id, data):
+        """Uppdatera ett befintligt föremål"""
+        query = """
+            UPDATE foremal SET
+                accessionsnummer = ?,
+                namn = ?,
+                beskrivning = ?,
+                kategori_id = ?,
+                material = ?,
+                tillverkningsar = ?,
+                tillverkningsplats = ?,
+                tillverkare = ?,
+                matt_langd = ?,
+                matt_bredd = ?,
+                matt_hojd = ?,
+                vikt = ?,
+                skick = ?,
+                placering_id = ?,
+                registrerad_av = ?
+            WHERE id = ?
+        """
+        self.cursor.execute(query, (*data, foremal_id))
+        self.conn.commit()
+
     def sok_foremal(self, sokterm="", kategori_id=None):
         """Sök efter föremål"""
         query = """
@@ -1075,6 +1099,7 @@ class MuseumGUI:
         button_frame = ttk.Frame(frame)
         button_frame.pack(pady=5)
         ttk.Button(button_frame, text="Visa detaljer", command=lambda: self.visa_foremal_detaljer(None)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Redigera föremål", command=self.redigera_valt_foremal).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Skriv ut valt föremål", command=self.skriv_ut_valt_foremal).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Skriv ut lista", command=self.skriv_ut_foremalslista).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Ta bort föremål", command=self.ta_bort_valt_foremal).pack(side=tk.LEFT, padx=5)
@@ -2041,6 +2066,283 @@ SENASTE REGISTRERINGAR:
 
         except Exception as e:
             messagebox.showerror("Fel", f"Kunde inte ta bort föremål: {str(e)}")
+
+    def redigera_valt_foremal(self):
+        """Redigera valt föremål"""
+        selection = self.resultat_tree.selection()
+        if not selection:
+            messagebox.showwarning("Varning", "Välj ett föremål först!\n\nMarkera ett föremål i listan som du vill redigera.")
+            return
+
+        # Hämta föremålsinformation
+        item = self.resultat_tree.item(selection[0])
+        foremal_id = int(item['text'])
+        foremal = self.db.hamta_foremal(foremal_id)
+
+        if not foremal:
+            messagebox.showerror("Fel", "Kunde inte hämta föremålsinformation")
+            return
+
+        # Skapa redigeringsfönster
+        edit_window = tk.Toplevel(self.root)
+        edit_window.title(f"Redigera föremål: {foremal['namn']}")
+        edit_window.geometry("800x900")
+
+        # Skapa scrollbar
+        canvas = tk.Canvas(edit_window)
+        scrollbar = ttk.Scrollbar(edit_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Formulärfält
+        row = 0
+
+        # Accessionsnummer
+        ttk.Label(scrollable_frame, text="Accessionsnummer*:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        acc_nr_entry = ttk.Entry(scrollable_frame, width=30)
+        acc_nr_entry.insert(0, foremal['accessionsnummer'])
+        acc_nr_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Namn
+        ttk.Label(scrollable_frame, text="Namn*:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        namn_entry = ttk.Entry(scrollable_frame, width=50)
+        namn_entry.insert(0, foremal['namn'])
+        namn_entry.grid(row=row, column=1, columnspan=2, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Beskrivning
+        ttk.Label(scrollable_frame, text="Beskrivning:").grid(row=row, column=0, sticky=tk.NW, padx=5, pady=5)
+        beskrivning_text = tk.Text(scrollable_frame, width=50, height=5)
+        if foremal['beskrivning']:
+            beskrivning_text.insert("1.0", foremal['beskrivning'])
+        beskrivning_text.grid(row=row, column=1, columnspan=2, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Kategori
+        ttk.Label(scrollable_frame, text="Kategori:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        kategori_var = tk.StringVar()
+        if foremal['kategori_namn']:
+            kategori_var.set(foremal['kategori_namn'])
+        kategori_combo = ttk.Combobox(scrollable_frame, textvariable=kategori_var, width=30)
+        kategorier = self.db.hamta_kategorier()
+        kategori_combo['values'] = [kat['namn'] for kat in kategorier]
+        kategori_combo.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Material
+        ttk.Label(scrollable_frame, text="Material:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        material_entry = ttk.Entry(scrollable_frame, width=30)
+        if foremal['material']:
+            material_entry.insert(0, foremal['material'])
+        material_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Tillverkningsår
+        ttk.Label(scrollable_frame, text="Tillverkningsår:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        tillv_ar_entry = ttk.Entry(scrollable_frame, width=30)
+        if foremal['tillverkningsar']:
+            tillv_ar_entry.insert(0, foremal['tillverkningsar'])
+        tillv_ar_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Tillverkningsplats
+        ttk.Label(scrollable_frame, text="Tillverkningsplats:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        tillv_plats_entry = ttk.Entry(scrollable_frame, width=30)
+        if foremal['tillverkningsplats']:
+            tillv_plats_entry.insert(0, foremal['tillverkningsplats'])
+        tillv_plats_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Tillverkare
+        ttk.Label(scrollable_frame, text="Tillverkare:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        tillverkare_entry = ttk.Entry(scrollable_frame, width=30)
+        if foremal['tillverkare']:
+            tillverkare_entry.insert(0, foremal['tillverkare'])
+        tillverkare_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Mått
+        ttk.Label(scrollable_frame, text="Mått (cm):").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        matt_frame = ttk.Frame(scrollable_frame)
+        matt_frame.grid(row=row, column=1, columnspan=2, sticky=tk.W, padx=5, pady=5)
+
+        ttk.Label(matt_frame, text="L:").pack(side=tk.LEFT)
+        matt_l_entry = ttk.Entry(matt_frame, width=10)
+        if foremal['matt_langd']:
+            matt_l_entry.insert(0, str(foremal['matt_langd']))
+        matt_l_entry.pack(side=tk.LEFT, padx=2)
+
+        ttk.Label(matt_frame, text="B:").pack(side=tk.LEFT, padx=(10,0))
+        matt_b_entry = ttk.Entry(matt_frame, width=10)
+        if foremal['matt_bredd']:
+            matt_b_entry.insert(0, str(foremal['matt_bredd']))
+        matt_b_entry.pack(side=tk.LEFT, padx=2)
+
+        ttk.Label(matt_frame, text="H:").pack(side=tk.LEFT, padx=(10,0))
+        matt_h_entry = ttk.Entry(matt_frame, width=10)
+        if foremal['matt_hojd']:
+            matt_h_entry.insert(0, str(foremal['matt_hojd']))
+        matt_h_entry.pack(side=tk.LEFT, padx=2)
+        row += 1
+
+        # Vikt
+        ttk.Label(scrollable_frame, text="Vikt (g):").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        vikt_entry = ttk.Entry(scrollable_frame, width=30)
+        if foremal['vikt']:
+            vikt_entry.insert(0, str(foremal['vikt']))
+        vikt_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Skick
+        ttk.Label(scrollable_frame, text="Skick:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        skick_var = tk.StringVar(value=foremal['skick'] if foremal['skick'] else "Gott")
+        skick_frame = ttk.Frame(scrollable_frame)
+        skick_frame.grid(row=row, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Radiobutton(skick_frame, text="Utmärkt", variable=skick_var, value="Utmärkt").pack(side=tk.LEFT)
+        ttk.Radiobutton(skick_frame, text="Gott", variable=skick_var, value="Gott").pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(skick_frame, text="Dåligt", variable=skick_var, value="Dåligt").pack(side=tk.LEFT)
+        row += 1
+
+        # Placering
+        ttk.Label(scrollable_frame, text="Placering:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        placering_var = tk.StringVar()
+        platser = self.db.hamta_platser()
+        plats_lista = []
+        current_plats = ""
+        for plats in platser:
+            plats_str = f"{plats['byggnad']}"
+            if plats['rum']:
+                plats_str += f" - {plats['rum']}"
+            if plats['hylla_sektion']:
+                plats_str += f" - {plats['hylla_sektion']}"
+            plats_lista.append(plats_str)
+            # Sätt nuvarande plats
+            if foremal['byggnad'] and plats['byggnad'] == foremal['byggnad']:
+                if (not foremal['rum'] and not plats['rum']) or (foremal['rum'] == plats['rum']):
+                    if (not foremal['hylla_sektion'] and not plats['hylla_sektion']) or \
+                       (foremal['hylla_sektion'] == plats['hylla_sektion']):
+                        current_plats = plats_str
+
+        if current_plats:
+            placering_var.set(current_plats)
+        placering_combo = ttk.Combobox(scrollable_frame, textvariable=placering_var, width=30)
+        placering_combo['values'] = plats_lista
+        placering_combo.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Registrerad av
+        ttk.Label(scrollable_frame, text="Registrerad av:").grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+        reg_av_entry = ttk.Entry(scrollable_frame, width=30)
+        if foremal['registrerad_av']:
+            reg_av_entry.insert(0, foremal['registrerad_av'])
+        reg_av_entry.grid(row=row, column=1, padx=5, pady=5, sticky=tk.W)
+        row += 1
+
+        # Spara-funktion
+        def spara_andringar():
+            # Validera obligatoriska fält
+            if not acc_nr_entry.get():
+                messagebox.showerror("Fel", "Accessionsnummer måste anges!")
+                return
+
+            if not namn_entry.get():
+                messagebox.showerror("Fel", "Namn måste anges!")
+                return
+
+            # Hämta kategori-id
+            kategori_id = None
+            kategori_namn = kategori_var.get()
+            if kategori_namn:
+                for kat in kategorier:
+                    if kat['namn'] == kategori_namn:
+                        kategori_id = kat['id']
+                        break
+
+            # Hämta plats-id
+            placering_id = None
+            plats_text = placering_var.get()
+            if plats_text:
+                for plats in platser:
+                    plats_str = f"{plats['byggnad']}"
+                    if plats['rum']:
+                        plats_str += f" - {plats['rum']}"
+                    if plats['hylla_sektion']:
+                        plats_str += f" - {plats['hylla_sektion']}"
+                    if plats_str == plats_text:
+                        placering_id = plats['id']
+                        break
+
+            # Konvertera numeriska värden
+            def safe_float(val):
+                try:
+                    return float(val) if val else None
+                except ValueError:
+                    return None
+
+            # Samla data
+            data = (
+                acc_nr_entry.get(),
+                namn_entry.get(),
+                beskrivning_text.get("1.0", tk.END).strip(),
+                kategori_id,
+                material_entry.get(),
+                tillv_ar_entry.get(),
+                tillv_plats_entry.get(),
+                tillverkare_entry.get(),
+                safe_float(matt_l_entry.get()),
+                safe_float(matt_b_entry.get()),
+                safe_float(matt_h_entry.get()),
+                safe_float(vikt_entry.get()),
+                skick_var.get(),
+                placering_id,
+                reg_av_entry.get()
+            )
+
+            try:
+                self.db.uppdatera_foremal(foremal_id, data)
+                messagebox.showinfo("Sparat", f"Föremål '{namn_entry.get()}' har uppdaterats!")
+
+                # Uppdatera trädet i sökresultatet
+                updated_foremal = self.db.hamta_foremal(foremal_id)
+                plats_str = updated_foremal['byggnad'] if updated_foremal['byggnad'] else ""
+                if updated_foremal['rum']:
+                    plats_str += f" - {updated_foremal['rum']}"
+
+                self.resultat_tree.item(
+                    selection[0],
+                    values=(
+                        updated_foremal['accessionsnummer'],
+                        updated_foremal['namn'],
+                        updated_foremal['kategori_namn'] if updated_foremal['kategori_namn'] else "",
+                        updated_foremal['material'] if updated_foremal['material'] else "",
+                        plats_str
+                    )
+                )
+
+                edit_window.destroy()
+
+            except sqlite3.IntegrityError:
+                messagebox.showerror("Fel", "Accessionsnummer finns redan!")
+            except Exception as e:
+                messagebox.showerror("Fel", f"Kunde inte spara: {str(e)}")
+
+        # Knappar
+        button_frame = ttk.Frame(scrollable_frame)
+        button_frame.grid(row=row, column=0, columnspan=3, pady=20)
+
+        ttk.Button(button_frame, text="Spara ändringar", command=spara_andringar).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Avbryt", command=edit_window.destroy).pack(side=tk.LEFT, padx=5)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
 
 def main():
