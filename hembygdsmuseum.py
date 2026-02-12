@@ -12,6 +12,8 @@ import os
 import shutil
 from pathlib import Path
 from PIL import Image, ImageTk
+import webbrowser
+import tempfile
 
 
 class MuseumDB:
@@ -369,6 +371,318 @@ class MuseumDB:
             self.conn.close()
 
 
+class PrintManager:
+    """Hanterar utskriftsfunktioner"""
+
+    @staticmethod
+    def generera_html_header():
+        """Generera HTML-header med styling"""
+        return """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Hembygdsmuseum - Utskrift</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .info-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+        }
+        .label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
+            text-align: center;
+            color: #7f8c8d;
+        }
+        @media print {
+            body { margin: 20px; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+"""
+
+    @staticmethod
+    def generera_html_footer():
+        """Generera HTML-footer"""
+        datum = datetime.now().strftime("%Y-%m-%d %H:%M")
+        return f"""
+    <div class="footer">
+        <p>Hembygdsmuseum - Utskrivet {datum}</p>
+    </div>
+</body>
+</html>
+"""
+
+    @staticmethod
+    def visa_utskrift(html_innehall, titel="Utskrift"):
+        """Öppna utskrift i webbläsare"""
+        # Skapa temporär HTML-fil
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            f.write(PrintManager.generera_html_header())
+            f.write(html_innehall)
+            f.write(PrintManager.generera_html_footer())
+            temp_path = f.name
+
+        # Öppna i webbläsare
+        webbrowser.open('file://' + temp_path)
+        messagebox.showinfo("Utskrift",
+                           "Utskrift öppnad i webbläsare.\n\n"
+                           "Använd webbläsarens utskriftsfunktion (Ctrl+P / Cmd+P) för att skriva ut.")
+
+    @staticmethod
+    def skriv_ut_foremal(foremal):
+        """Generera HTML för ett föremål"""
+        def format_matt(l, b, h):
+            matt = []
+            if l: matt.append(f"{l}")
+            if b: matt.append(f"{b}")
+            if h: matt.append(f"{h}")
+            return " × ".join(matt) + " cm" if matt else "Ej angivet"
+
+        html = f"""
+<h1>Föremålsinformation</h1>
+
+<div class="info-section">
+    <p><span class="label">ID:</span> {foremal['id']}</p>
+    <p><span class="label">Accessionsnummer:</span> {foremal['accessionsnummer']}</p>
+    <p><span class="label">Namn:</span> {foremal['namn']}</p>
+</div>
+
+<h2>Beskrivning</h2>
+<div class="info-section">
+    <p>{foremal['beskrivning'] if foremal['beskrivning'] else 'Ingen beskrivning'}</p>
+</div>
+
+<h2>Klassificering</h2>
+<div class="info-section">
+    <p><span class="label">Kategori:</span> {foremal['kategori_namn'] if foremal['kategori_namn'] else 'Ej angiven'}</p>
+    <p><span class="label">Material:</span> {foremal['material'] if foremal['material'] else 'Ej angivet'}</p>
+</div>
+
+<h2>Tillverkning</h2>
+<div class="info-section">
+    <p><span class="label">År:</span> {foremal['tillverkningsar'] if foremal['tillverkningsar'] else 'Okänt'}</p>
+    <p><span class="label">Plats:</span> {foremal['tillverkningsplats'] if foremal['tillverkningsplats'] else 'Okänd'}</p>
+    <p><span class="label">Tillverkare:</span> {foremal['tillverkare'] if foremal['tillverkare'] else 'Okänd'}</p>
+</div>
+
+<h2>Fysiska egenskaper</h2>
+<div class="info-section">
+    <p><span class="label">Mått (L×B×H):</span> {format_matt(foremal['matt_langd'], foremal['matt_bredd'], foremal['matt_hojd'])}</p>
+    <p><span class="label">Vikt:</span> {foremal['vikt'] if foremal['vikt'] else 'Ej angivet'} {'g' if foremal['vikt'] else ''}</p>
+    <p><span class="label">Skick:</span> {foremal['skick'] if foremal['skick'] else 'Ej angivet'}</p>
+</div>
+
+<h2>Förvaring</h2>
+<div class="info-section">
+    <p><span class="label">Byggnad:</span> {foremal['byggnad'] if foremal['byggnad'] else 'Ej angiven'}</p>
+    <p><span class="label">Rum:</span> {foremal['rum'] if foremal['rum'] else 'Ej angivet'}</p>
+    <p><span class="label">Hylla/Sektion:</span> {foremal['hylla_sektion'] if foremal['hylla_sektion'] else 'Ej angivet'}</p>
+</div>
+
+<h2>Registrering</h2>
+<div class="info-section">
+    <p><span class="label">Datum:</span> {foremal['datum_registrerat']}</p>
+    <p><span class="label">Registrerad av:</span> {foremal['registrerad_av'] if foremal['registrerad_av'] else 'Okänd'}</p>
+</div>
+"""
+        return html
+
+    @staticmethod
+    def skriv_ut_foremalslista(foremalslista):
+        """Generera HTML för lista av föremål"""
+        html = f"""
+<h1>Föremålslista</h1>
+<p>Antal föremål: {len(foremalslista)}</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Acc.nr</th>
+            <th>Namn</th>
+            <th>Kategori</th>
+            <th>Material</th>
+            <th>Plats</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+        for foremal in foremalslista:
+            plats_str = foremal['byggnad'] if foremal['byggnad'] else ""
+            if foremal['rum']:
+                plats_str += f" - {foremal['rum']}"
+
+            html += f"""
+        <tr>
+            <td>{foremal['accessionsnummer']}</td>
+            <td>{foremal['namn']}</td>
+            <td>{foremal['kategori_namn'] if foremal['kategori_namn'] else ''}</td>
+            <td>{foremal['material'] if foremal['material'] else ''}</td>
+            <td>{plats_str}</td>
+        </tr>
+"""
+        html += """
+    </tbody>
+</table>
+"""
+        return html
+
+    @staticmethod
+    def skriv_ut_statistik(stats):
+        """Generera HTML för statistik"""
+        html = f"""
+<h1>Museistatistik</h1>
+
+<div class="info-section">
+    <h2>Totalt antal föremål: {stats['totalt']}</h2>
+</div>
+
+<h2>Fördelning per kategori</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Kategori</th>
+            <th>Antal</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+        for kat in stats['per_kategori']:
+            if kat[1] > 0:
+                html += f"""
+        <tr>
+            <td>{kat[0]}</td>
+            <td>{kat[1]}</td>
+        </tr>
+"""
+        html += """
+    </tbody>
+</table>
+
+<h2>Senaste registreringar</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Accessionsnummer</th>
+            <th>Namn</th>
+            <th>Datum</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+        for foremal in stats['senaste']:
+            html += f"""
+        <tr>
+            <td>{foremal['accessionsnummer']}</td>
+            <td>{foremal['namn']}</td>
+            <td>{foremal['datum_registrerat']}</td>
+        </tr>
+"""
+        html += """
+    </tbody>
+</table>
+"""
+        return html
+
+    @staticmethod
+    def skriv_ut_platslista(platser):
+        """Generera HTML för platslista"""
+        html = f"""
+<h1>Platslista</h1>
+<p>Antal platser: {len(platser)}</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Byggnad</th>
+            <th>Rum</th>
+            <th>Hylla/Sektion</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+        for plats in platser:
+            html += f"""
+        <tr>
+            <td>{plats['byggnad']}</td>
+            <td>{plats['rum'] if plats['rum'] else '-'}</td>
+            <td>{plats['hylla_sektion'] if plats['hylla_sektion'] else '-'}</td>
+        </tr>
+"""
+        html += """
+    </tbody>
+</table>
+"""
+        return html
+
+    @staticmethod
+    def skriv_ut_kategorilista(kategorier):
+        """Generera HTML för kategorilista"""
+        html = f"""
+<h1>Kategorilista</h1>
+<p>Antal kategorier: {len(kategorier)}</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Kategori</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+        for kat in kategorier:
+            html += f"""
+        <tr>
+            <td>{kat['namn']}</td>
+        </tr>
+"""
+        html += """
+    </tbody>
+</table>
+"""
+        return html
+
+
 class MuseumGUI:
     """Huvudfönster för museidatabasen"""
 
@@ -412,6 +726,16 @@ class MuseumGUI:
         arkiv_menu.add_command(label="Backup databas", command=self.backup_databas)
         arkiv_menu.add_separator()
         arkiv_menu.add_command(label="Avsluta", command=self.root.quit)
+
+        # Skriv ut-meny
+        skriv_ut_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Skriv ut", menu=skriv_ut_menu)
+        skriv_ut_menu.add_command(label="Skriv ut valt föremål", command=self.skriv_ut_valt_foremal)
+        skriv_ut_menu.add_command(label="Skriv ut föremålslista", command=self.skriv_ut_foremalslista)
+        skriv_ut_menu.add_separator()
+        skriv_ut_menu.add_command(label="Skriv ut statistik", command=self.skriv_ut_statistik)
+        skriv_ut_menu.add_command(label="Skriv ut platslista", command=self.skriv_ut_platslista)
+        skriv_ut_menu.add_command(label="Skriv ut kategorilista", command=self.skriv_ut_kategorilista)
 
         # Hjälp-meny
         hjalp_menu = tk.Menu(menubar, tearoff=0)
@@ -624,8 +948,12 @@ class MuseumGUI:
         # Dubbelklick för att visa detaljer
         self.resultat_tree.bind("<Double-1>", self.visa_foremal_detaljer)
 
-        # Knapp för att visa detaljer
-        ttk.Button(frame, text="Visa detaljer", command=lambda: self.visa_foremal_detaljer(None)).pack(pady=5)
+        # Knappar för att visa detaljer och skriva ut
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(pady=5)
+        ttk.Button(button_frame, text="Visa detaljer", command=lambda: self.visa_foremal_detaljer(None)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Skriv ut valt föremål", command=self.skriv_ut_valt_foremal).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Skriv ut lista", command=self.skriv_ut_foremalslista).pack(side=tk.LEFT, padx=5)
 
     def skapa_kategorier_flik(self):
         """Flik för att hantera kategorier"""
@@ -651,6 +979,11 @@ class MuseumGUI:
         self.kategori_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, height=20)
         self.kategori_listbox.pack(fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.kategori_listbox.yview)
+
+        # Knapp för att skriva ut kategorilista
+        button_frame = ttk.Frame(list_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        ttk.Button(button_frame, text="Skriv ut kategorilista", command=self.skriv_ut_kategorilista).pack()
 
         self.uppdatera_kategori_listbox()
 
@@ -688,10 +1021,11 @@ class MuseumGUI:
         self.plats_listbox.pack(fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.plats_listbox.yview)
 
-        # Knapp för att ta bort vald plats
+        # Knappar för att ta bort och skriva ut
         button_frame = ttk.Frame(list_frame)
         button_frame.pack(fill=tk.X, pady=5)
-        ttk.Button(button_frame, text="Ta bort vald plats", command=self.ta_bort_vald_plats).pack()
+        ttk.Button(button_frame, text="Ta bort vald plats", command=self.ta_bort_vald_plats).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Skriv ut platslista", command=self.skriv_ut_platslista).pack(side=tk.LEFT, padx=5)
 
         self.uppdatera_plats_listbox()
 
@@ -744,8 +1078,11 @@ class MuseumGUI:
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Statistik")
 
-        # Knapp för att uppdatera statistik
-        ttk.Button(frame, text="Uppdatera statistik", command=self.uppdatera_statistik).pack(pady=10)
+        # Knappar för att uppdatera och skriva ut statistik
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(pady=10)
+        ttk.Button(button_frame, text="Uppdatera statistik", command=self.uppdatera_statistik).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Skriv ut statistik", command=self.skriv_ut_statistik).pack(side=tk.LEFT, padx=5)
 
         # Text widget för statistik
         self.statistik_text = tk.Text(frame, wrap=tk.WORD, height=30)
@@ -1452,6 +1789,70 @@ SENASTE REGISTRERINGAR:
             "Skapad med Python, SQLite och Tkinter.\n"
             "© 2026"
         )
+
+    # ========== UTSKRIFTSFUNKTIONER ==========
+
+    def skriv_ut_valt_foremal(self):
+        """Skriv ut information om valt föremål"""
+        selection = self.resultat_tree.selection()
+        if not selection:
+            messagebox.showwarning("Varning", "Välj ett föremål först!\n\nGå till fliken 'Sök föremål' och välj ett föremål i listan.")
+            return
+
+        item = self.resultat_tree.item(selection[0])
+        foremal_id = int(item['text'])
+        foremal = self.db.hamta_foremal(foremal_id)
+
+        if foremal:
+            html = PrintManager.skriv_ut_foremal(foremal)
+            PrintManager.visa_utskrift(html, "Föremålsinformation")
+        else:
+            messagebox.showerror("Fel", "Kunde inte hämta föremålsinformation")
+
+    def skriv_ut_foremalslista(self):
+        """Skriv ut lista över föremål"""
+        # Hämta aktuella sökresultat eller alla föremål
+        resultat = []
+        for item in self.resultat_tree.get_children():
+            item_data = self.resultat_tree.item(item)
+            foremal_id = int(item_data['text'])
+            foremal = self.db.hamta_foremal(foremal_id)
+            if foremal:
+                resultat.append(foremal)
+
+        if not resultat:
+            # Om ingen sökning gjorts, hämta alla föremål
+            resultat = self.db.sok_foremal()
+
+        if resultat:
+            html = PrintManager.skriv_ut_foremalslista(resultat)
+            PrintManager.visa_utskrift(html, "Föremålslista")
+        else:
+            messagebox.showinfo("Info", "Inga föremål att skriva ut")
+
+    def skriv_ut_statistik(self):
+        """Skriv ut statistik"""
+        stats = self.db.hamta_statistik()
+        html = PrintManager.skriv_ut_statistik(stats)
+        PrintManager.visa_utskrift(html, "Museistatistik")
+
+    def skriv_ut_platslista(self):
+        """Skriv ut lista över platser"""
+        platser = self.db.hamta_platser()
+        if platser:
+            html = PrintManager.skriv_ut_platslista(platser)
+            PrintManager.visa_utskrift(html, "Platslista")
+        else:
+            messagebox.showinfo("Info", "Inga platser registrerade")
+
+    def skriv_ut_kategorilista(self):
+        """Skriv ut lista över kategorier"""
+        kategorier = self.db.hamta_kategorier()
+        if kategorier:
+            html = PrintManager.skriv_ut_kategorilista(kategorier)
+            PrintManager.visa_utskrift(html, "Kategorilista")
+        else:
+            messagebox.showinfo("Info", "Inga kategorier registrerade")
 
 
 def main():
