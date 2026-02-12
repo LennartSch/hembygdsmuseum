@@ -219,8 +219,17 @@ class MuseumDB:
         return self.cursor.fetchall()
 
     def hamta_givare(self):
-        """Hämta alla givare"""
+        """Hämta alla givare (endast id och namn)"""
         self.cursor.execute("SELECT id, namn FROM givare ORDER BY namn")
+        return self.cursor.fetchall()
+
+    def hamta_alla_givare_detaljerat(self):
+        """Hämta alla givare med fullständig information"""
+        self.cursor.execute("""
+            SELECT id, namn, adress, telefon, epost, anteckningar
+            FROM givare
+            ORDER BY namn
+        """)
         return self.cursor.fetchall()
 
     def lagg_till_foremal(self, data):
@@ -682,6 +691,41 @@ class PrintManager:
 """
         return html
 
+    @staticmethod
+    def skriv_ut_givarlista(givare):
+        """Generera HTML för givarlista"""
+        html = f"""
+<h1>Givarlista</h1>
+<p>Antal givare: {len(givare)}</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Namn</th>
+            <th>Adress</th>
+            <th>Telefon</th>
+            <th>E-post</th>
+            <th>Anteckningar</th>
+        </tr>
+    </thead>
+    <tbody>
+"""
+        for givare_rad in givare:
+            html += f"""
+        <tr>
+            <td>{givare_rad['namn']}</td>
+            <td>{givare_rad['adress'] if givare_rad['adress'] else '-'}</td>
+            <td>{givare_rad['telefon'] if givare_rad['telefon'] else '-'}</td>
+            <td>{givare_rad['epost'] if givare_rad['epost'] else '-'}</td>
+            <td>{givare_rad['anteckningar'] if givare_rad['anteckningar'] else '-'}</td>
+        </tr>
+"""
+        html += """
+    </tbody>
+</table>
+"""
+        return html
+
 
 class MuseumGUI:
     """Huvudfönster för museidatabasen"""
@@ -736,6 +780,7 @@ class MuseumGUI:
         skriv_ut_menu.add_command(label="Skriv ut statistik", command=self.skriv_ut_statistik)
         skriv_ut_menu.add_command(label="Skriv ut platslista", command=self.skriv_ut_platslista)
         skriv_ut_menu.add_command(label="Skriv ut kategorilista", command=self.skriv_ut_kategorilista)
+        skriv_ut_menu.add_command(label="Skriv ut givarlista", command=self.skriv_ut_givarlista)
 
         # Hjälp-meny
         hjalp_menu = tk.Menu(menubar, tearoff=0)
@@ -1070,6 +1115,11 @@ class MuseumGUI:
         self.givare_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, height=15)
         self.givare_listbox.pack(fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.givare_listbox.yview)
+
+        # Knapp för att skriva ut givarlista
+        button_frame = ttk.Frame(list_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        ttk.Button(button_frame, text="Skriv ut givarlista", command=self.skriv_ut_givarlista).pack()
 
         self.uppdatera_givare_listbox()
 
@@ -1853,6 +1903,15 @@ SENASTE REGISTRERINGAR:
             PrintManager.visa_utskrift(html, "Kategorilista")
         else:
             messagebox.showinfo("Info", "Inga kategorier registrerade")
+
+    def skriv_ut_givarlista(self):
+        """Skriv ut lista över givare"""
+        givare = self.db.hamta_alla_givare_detaljerat()
+        if givare:
+            html = PrintManager.skriv_ut_givarlista(givare)
+            PrintManager.visa_utskrift(html, "Givarlista")
+        else:
+            messagebox.showinfo("Info", "Inga givare registrerade")
 
 
 def main():
