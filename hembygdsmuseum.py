@@ -14,6 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageTk
 import webbrowser
 import tempfile
+import base64
 
 
 class MuseumDB:
@@ -479,7 +480,7 @@ class PrintManager:
                            "Använd webbläsarens utskriftsfunktion (Ctrl+P / Cmd+P) för att skriva ut.")
 
     @staticmethod
-    def skriv_ut_foremal(foremal):
+    def skriv_ut_foremal(foremal, foton=None):
         """Generera HTML för ett föremål"""
         def format_matt(l, b, h):
             matt = []
@@ -487,6 +488,34 @@ class PrintManager:
             if b: matt.append(f"{b}")
             if h: matt.append(f"{h}")
             return " × ".join(matt) + " cm" if matt else "Ej angivet"
+
+        def bild_till_base64(bildsokvag):
+            """Konvertera bild till base64 för inbäddning i HTML"""
+            try:
+                if os.path.exists(bildsokvag):
+                    # Öppna och skala ner bild för bättre prestanda
+                    img = Image.open(bildsokvag)
+                    # Skala ner till max 800px bred
+                    max_width = 800
+                    if img.width > max_width:
+                        ratio = max_width / img.width
+                        new_height = int(img.height * ratio)
+                        img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+
+                    # Konvertera till bytes
+                    import io
+                    buffer = io.BytesIO()
+                    img_format = img.format if img.format else 'JPEG'
+                    img.save(buffer, format=img_format)
+                    img_bytes = buffer.getvalue()
+
+                    # Konvertera till base64
+                    img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+                    mime_type = f"image/{img_format.lower()}"
+                    return f"data:{mime_type};base64,{img_base64}"
+            except Exception as e:
+                print(f"Fel vid konvertering av bild: {e}")
+            return None
 
         html = f"""
 <h1>Föremålsinformation</h1>
@@ -501,7 +530,29 @@ class PrintManager:
 <div class="info-section">
     <p>{foremal['beskrivning'] if foremal['beskrivning'] else 'Ingen beskrivning'}</p>
 </div>
+"""
 
+        # Lägg till bilder om det finns några
+        if foton and len(foton) > 0:
+            html += """
+<h2>Bilder</h2>
+<div class="info-section" style="text-align: center;">
+"""
+            for foto in foton:
+                img_data = bild_till_base64(foto['filsokvag'])
+                if img_data:
+                    filnamn = Path(foto['filsokvag']).name
+                    html += f"""
+    <div style="margin: 20px 0; page-break-inside: avoid;">
+        <img src="{img_data}" style="max-width: 100%; height: auto; border: 1px solid #ddd; padding: 5px;">
+        <p style="font-size: 0.9em; color: #666; margin-top: 5px;">{filnamn}</p>
+    </div>
+"""
+            html += """
+</div>
+"""
+
+        html += f"""
 <h2>Klassificering</h2>
 <div class="info-section">
     <p><span class="label">Kategori:</span> {foremal['kategori_namn'] if foremal['kategori_namn'] else 'Ej angiven'}</p>
@@ -1852,9 +1903,10 @@ SENASTE REGISTRERINGAR:
         item = self.resultat_tree.item(selection[0])
         foremal_id = int(item['text'])
         foremal = self.db.hamta_foremal(foremal_id)
+        foton = self.db.hamta_foton(foremal_id)
 
         if foremal:
-            html = PrintManager.skriv_ut_foremal(foremal)
+            html = PrintManager.skriv_ut_foremal(foremal, foton)
             PrintManager.visa_utskrift(html, "Föremålsinformation")
         else:
             messagebox.showerror("Fel", "Kunde inte hämta föremålsinformation")
